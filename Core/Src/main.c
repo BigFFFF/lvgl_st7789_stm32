@@ -26,6 +26,7 @@
 /* USER CODE BEGIN Includes */
 #include "lv_port_disp.h"
 #include "lv_examples.h"
+#include "lv_demos.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -96,7 +97,7 @@ int main(void)
 
   lv_init();
   lv_port_disp_init();
-  lv_example_get_started_2();
+  lv_demo_benchmark();
 
   /* USER CODE END 2 */
 
@@ -107,8 +108,7 @@ int main(void)
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
-	lv_timer_handler();
-	HAL_Delay(5);
+	lv_timer_periodic_handler();
   }
   /* USER CODE END 3 */
 }

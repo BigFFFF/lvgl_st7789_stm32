@@ -30,9 +30,10 @@ freely, subject to the following restrictions:
 extern "C" {
 #endif
 
+#include <string.h> /*for size_t*/
+
 #include "../../../lvgl.h"
 #if LV_USE_LODEPNG
-#include LV_STDDEF_INCLUDE /*for size_t*/
 LV_ATTRIBUTE_EXTERN_DATA extern const char * LODEPNG_VERSION_STRING;
 
 /*

@@ -11,15 +11,10 @@
 
 #include "lv_libpng.h"
 #include <png.h>
-#include <string.h>
 
 /*********************
  *      DEFINES
  *********************/
-
-#define DECODER_NAME    "PNG"
-
-#define image_cache_draw_buf_handlers &(LV_GLOBAL_DEFAULT()->image_cache_draw_buf_handlers)
 
 /**********************
  *      TYPEDEFS
@@ -31,7 +26,7 @@
 static lv_result_t decoder_info(lv_image_decoder_t * decoder, const void * src, lv_image_header_t * header);
 static lv_result_t decoder_open(lv_image_decoder_t * decoder, lv_image_decoder_dsc_t * dsc);
 static void decoder_close(lv_image_decoder_t * decoder, lv_image_decoder_dsc_t * dsc);
-static lv_draw_buf_t * decode_png_file(lv_image_decoder_dsc_t * dsc, const char * filename);
+static lv_draw_buf_t * decode_png_file(const char * filename);
 
 /**********************
  *  STATIC VARIABLES
@@ -54,8 +49,7 @@ void lv_libpng_init(void)
     lv_image_decoder_set_info_cb(dec, decoder_info);
     lv_image_decoder_set_open_cb(dec, decoder_open);
     lv_image_decoder_set_close_cb(dec, decoder_close);
-
-    dec->name = DECODER_NAME;
+    lv_image_decoder_set_cache_free_cb(dec, NULL); /*Use general cache free method*/
 }
 
 void lv_libpng_deinit(void)
@@ -132,7 +126,7 @@ static lv_result_t decoder_open(lv_image_decoder_t * decoder, lv_image_decoder_d
     /*If it's a PNG file...*/
     if(dsc->src_type == LV_IMAGE_SRC_FILE) {
         const char * fn = dsc->src;
-        lv_draw_buf_t * decoded = decode_png_file(dsc, fn);
+        lv_draw_buf_t * decoded = decode_png_file(fn);
         if(decoded == NULL) {
             return LV_RESULT_INVALID;
         }
@@ -151,12 +145,9 @@ static lv_result_t decoder_open(lv_image_decoder_t * decoder, lv_image_decoder_d
 
         dsc->decoded = decoded;
 
-        if(dsc->args.no_cache) return LV_RESULT_OK;
+        if(dsc->args.no_cache) return LV_RES_OK;
 
-        /*If the image cache is disabled, just return the decoded image*/
-        if(!lv_image_cache_is_enabled()) return LV_RESULT_OK;
-
-        /*Add the decoded image to the cache*/
+#if LV_CACHE_DEF_SIZE > 0
         lv_image_cache_data_t search_key;
         search_key.src_type = dsc->src_type;
         search_key.src = dsc->src;
@@ -169,7 +160,7 @@ static lv_result_t decoder_open(lv_image_decoder_t * decoder, lv_image_decoder_d
             return LV_RESULT_INVALID;
         }
         dsc->cache_entry = entry;
-
+#endif
         return LV_RESULT_OK;     /*The image is fully decoded. Return with its pointer*/
     }
 
@@ -183,7 +174,10 @@ static void decoder_close(lv_image_decoder_t * decoder, lv_image_decoder_dsc_t *
 {
     LV_UNUSED(decoder); /*Unused*/
 
-    if(dsc->args.no_cache || !lv_image_cache_is_enabled()) lv_draw_buf_destroy((lv_draw_buf_t *)dsc->decoded);
+    if(dsc->args.no_cache || LV_CACHE_DEF_SIZE == 0)
+        lv_draw_buf_destroy((lv_draw_buf_t *)dsc->decoded);
+    else
+        lv_cache_release(dsc->cache, dsc->cache_entry, NULL);
 }
 
 static uint8_t * alloc_file(const char * filename, uint32_t * size)
@@ -241,7 +235,7 @@ failed:
     return data;
 }
 
-static lv_draw_buf_t * decode_png_file(lv_image_decoder_dsc_t * dsc, const char * filename)
+static lv_draw_buf_t * decode_png_file(const char * filename)
 {
     int ret;
 
@@ -265,34 +259,24 @@ static lv_draw_buf_t * decode_png_file(lv_image_decoder_dsc_t * dsc, const char 
         return NULL;
     }
 
-    lv_color_format_t cf;
-    if(dsc->args.use_indexed && (image.format & PNG_FORMAT_FLAG_COLORMAP)) {
-        cf = LV_COLOR_FORMAT_I8;
-        image.format = PNG_FORMAT_BGRA_COLORMAP;
-    }
-    else {
-        cf = LV_COLOR_FORMAT_ARGB8888;
-        image.format = PNG_FORMAT_BGRA;
-    }
+    /*Set color format*/
+    image.format = PNG_FORMAT_BGRA;
 
     /*Alloc image buffer*/
     lv_draw_buf_t * decoded;
-    decoded = lv_draw_buf_create_user(image_cache_draw_buf_handlers, image.width, image.height, cf, LV_STRIDE_AUTO);
+    decoded = lv_draw_buf_create(image.width, image.height, LV_COLOR_FORMAT_ARGB8888, PNG_IMAGE_ROW_STRIDE(image));
     if(decoded == NULL) {
         LV_LOG_ERROR("alloc PNG_IMAGE_SIZE(%" LV_PRIu32 ") failed: %s", (uint32_t)PNG_IMAGE_SIZE(image), filename);
         lv_free(data);
         return NULL;
     }
 
-    void * palette = decoded->data;
-    void * map = decoded->data + LV_COLOR_INDEXED_PALETTE_SIZE(cf) * sizeof(lv_color32_t);
-
     /*Start decoding*/
-    ret = png_image_finish_read(&image, NULL, map, decoded->header.stride, palette);
+    ret = png_image_finish_read(&image, NULL, decoded->data, 0, NULL);
     png_image_free(&image);
     lv_free(data);
     if(!ret) {
-        LV_LOG_ERROR("png decode failed: %s", image.message);
+        LV_LOG_ERROR("png decode failed: %d", ret);
         lv_draw_buf_destroy(decoded);
         return NULL;
     }

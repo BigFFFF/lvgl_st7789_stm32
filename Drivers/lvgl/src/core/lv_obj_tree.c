@@ -6,6 +6,8 @@
 /*********************
  *      INCLUDES
  *********************/
+#include <stdlib.h>
+
 #include "lv_obj.h"
 #include "../indev/lv_indev.h"
 #include "../indev/lv_indev_private.h"
@@ -33,7 +35,7 @@
 static void lv_obj_delete_async_cb(void * obj);
 static void obj_delete_core(lv_obj_t * obj);
 static lv_obj_tree_walk_res_t walk_core(lv_obj_t * obj, lv_obj_tree_walk_cb_t cb, void * user_data);
-static void dump_tree_core(lv_obj_t * obj, int32_t depth);
+static lv_obj_tree_walk_res_t dump_tree_core(lv_obj_t * obj, int32_t depth);
 static lv_obj_t * lv_obj_get_first_not_deleting_child(lv_obj_t * obj);
 
 /**********************
@@ -151,10 +153,6 @@ void lv_obj_set_parent(lv_obj_t * obj, lv_obj_t * parent)
 
     if(parent == NULL) {
         LV_LOG_WARN("Can't set parent == NULL to an object");
-        return;
-    }
-
-    if(parent == obj->parent) {
         return;
     }
 
@@ -488,13 +486,8 @@ static void lv_obj_delete_async_cb(void * obj)
 
 static void obj_indev_reset(lv_indev_t * indev, lv_obj_t * obj)
 {
-    /* If the input device is already in the release state,
-     * there is no need to wait for the input device to be released
-     */
-    if(lv_indev_get_state(indev) != LV_INDEV_STATE_RELEASED) {
-        /*Wait for release to avoid accidentally triggering other obj to be clicked*/
-        lv_indev_wait_release(indev);
-    }
+    /*Wait for release to avoid accidentally triggering other obj to be clicked*/
+    lv_indev_wait_release(indev);
 
     /*Reset the input device*/
     lv_indev_reset(indev, obj);
@@ -616,8 +609,10 @@ static lv_obj_tree_walk_res_t walk_core(lv_obj_t * obj, lv_obj_tree_walk_cb_t cb
     return LV_OBJ_TREE_WALK_NEXT;
 }
 
-static void dump_tree_core(lv_obj_t * obj, int32_t depth)
+static lv_obj_tree_walk_res_t dump_tree_core(lv_obj_t * obj, int32_t depth)
 {
+    lv_obj_tree_walk_res_t res;
+
 #if LV_USE_LOG
     const char * id;
 
@@ -635,8 +630,14 @@ static void dump_tree_core(lv_obj_t * obj, int32_t depth)
 
     if(obj && obj->spec_attr && obj->spec_attr->child_cnt) {
         for(uint32_t i = 0; i < obj->spec_attr->child_cnt; i++) {
-            dump_tree_core(lv_obj_get_child(obj, i), depth + 1);
+            res = dump_tree_core(lv_obj_get_child(obj, i), depth + 1);
+            if(res == LV_OBJ_TREE_WALK_END)
+                break;
         }
+        return LV_OBJ_TREE_WALK_NEXT;
+    }
+    else {
+        return LV_OBJ_TREE_WALK_END;
     }
 }
 

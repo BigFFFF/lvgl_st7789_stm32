@@ -13,7 +13,6 @@
 #include "../stdlib/lv_string.h"
 #include "../themes/lv_theme.h"
 #include "../core/lv_global.h"
-#include "../others/sysmon/lv_sysmon.h"
 
 #if LV_USE_DRAW_SW
     #include "../draw/sw/lv_draw_sw.h"
@@ -139,14 +138,6 @@ lv_display_t * lv_display_create(int32_t hor_res, int32_t ver_res)
     lv_display_add_event_cb(disp, disp_event_cb, LV_EVENT_REFR_REQUEST, NULL);
 
     lv_timer_ready(disp->refr_timer); /*Be sure the screen will be refreshed immediately on start up*/
-
-#if LV_USE_PERF_MONITOR
-    lv_sysmon_show_performance(disp);
-#endif
-
-#if LV_USE_MEM_MONITOR
-    lv_sysmon_show_memory(disp);
-#endif
 
     return disp;
 }
@@ -466,8 +457,6 @@ void lv_display_set_color_format(lv_display_t * disp, lv_color_format_t color_fo
 
     disp->color_format = color_format;
     disp->layer_head->color_format = color_format;
-    if(disp->buf_1) disp->buf_1->header.cf = color_format;
-    if(disp->buf_2) disp->buf_2->header.cf = color_format;
 
     lv_display_send_event(disp, LV_EVENT_COLOR_FORMAT_CHANGED, NULL);
 }
@@ -579,7 +568,7 @@ void lv_screen_load_anim(lv_obj_t * new_scr, lv_screen_load_anim_t anim_type, ui
                          bool auto_del)
 {
     lv_display_t * d = lv_obj_get_display(new_scr);
-    lv_obj_t * act_scr = d->act_scr;
+    lv_obj_t * act_scr = lv_screen_active();
 
     if(act_scr == new_scr || d->scr_to_load == new_scr) {
         return;
@@ -595,15 +584,17 @@ void lv_screen_load_anim(lv_obj_t * new_scr, lv_screen_load_anim_t anim_type, ui
         if(d->del_prev) {
             lv_obj_delete(act_scr);
         }
-        act_scr = d->act_scr; /*Active screen changed.*/
+        act_scr = lv_screen_active(); /*Active screen changed.*/
 
         scr_load_internal(d->scr_to_load);
     }
 
     d->scr_to_load = new_scr;
 
-    if(d->prev_scr && d->del_prev) lv_obj_delete(d->prev_scr);
-    d->prev_scr = NULL;
+    if(d->prev_scr && d->del_prev) {
+        lv_obj_delete(d->prev_scr);
+        d->prev_scr = NULL;
+    }
 
     d->draw_prev_over_act = is_out_anim(anim_type);
     d->del_prev = auto_del;
@@ -933,37 +924,6 @@ lv_draw_buf_t * lv_display_get_buf_active(lv_display_t * disp)
     return disp->buf_act;
 }
 
-void lv_display_rotate_area(lv_display_t * disp, lv_area_t * area)
-{
-    lv_display_rotation_t rotation = lv_display_get_rotation(disp);
-
-    int32_t w = lv_area_get_width(area);
-    int32_t h = lv_area_get_height(area);
-
-    switch(rotation) {
-        case LV_DISPLAY_ROTATION_0:
-            return;
-        case LV_DISPLAY_ROTATION_90:
-            area->y2 = disp->ver_res - area->x1 - 1;
-            area->x1 = area->y1;
-            area->x2 = area->x1 + h - 1;
-            area->y1 = area->y2 - w + 1;
-            break;
-        case LV_DISPLAY_ROTATION_180:
-            area->y2 = disp->ver_res - area->y1 - 1;
-            area->y1 = area->y2 - h + 1;
-            area->x2 = disp->hor_res - area->x1 - 1;
-            area->x1 = area->x2 - w + 1;
-            break;
-        case LV_DISPLAY_ROTATION_270:
-            area->x1 = disp->hor_res - area->y2 - 1;
-            area->y2 = area->x2;
-            area->x2 = area->x1 + h - 1;
-            area->y1 = area->y2 - w + 1;
-            break;
-    }
-}
-
 /**********************
  *   STATIC FUNCTIONS
  **********************/
@@ -1038,7 +998,7 @@ static void scr_load_anim_start(lv_anim_t * a)
 {
     lv_display_t * d = lv_obj_get_display(a->var);
 
-    d->prev_scr = d->act_scr;
+    d->prev_scr = lv_screen_active();
     d->act_scr = a->var;
 
     lv_obj_send_event(d->act_scr, LV_EVENT_SCREEN_LOAD_START, NULL);

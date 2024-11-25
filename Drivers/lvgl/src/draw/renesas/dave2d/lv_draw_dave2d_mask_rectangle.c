@@ -21,7 +21,9 @@ void lv_draw_dave2d_mask_rect(lv_draw_dave2d_unit_t * u, const lv_draw_mask_rect
 #if LV_USE_OS
     lv_result_t  status;
     status = lv_mutex_lock(u->pd2Mutex);
-    LV_ASSERT(LV_RESULT_OK == status);
+    if(LV_RESULT_OK != status) {
+        __BKPT(0);
+    }
 #endif
 
 #ifdef D2_RENDER_EACH_OPERATION
@@ -49,7 +51,9 @@ void lv_draw_dave2d_mask_rect(lv_draw_dave2d_unit_t * u, const lv_draw_mask_rect
 
 #if LV_USE_OS
     status = lv_mutex_unlock(u->pd2Mutex);
-    LV_ASSERT(LV_RESULT_OK == status);
+    if(LV_RESULT_OK != status) {
+        __BKPT(0);
+    }
 #endif
 }
 #endif //LV_USE_DRAW_DAVE2D

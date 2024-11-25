@@ -162,7 +162,6 @@ const char * lv_vg_lite_feature_string(vg_lite_feature_t feature)
             FEATURE_ENUM_TO_STRING(YUV_TILED_INPUT);
             FEATURE_ENUM_TO_STRING(AYUV_INPUT);
             FEATURE_ENUM_TO_STRING(16PIXELS_ALIGN);
-            FEATURE_ENUM_TO_STRING(DEC_COMPRESS_2_0);
         default:
             break;
     }
@@ -501,7 +500,7 @@ uint32_t lv_vg_lite_width_to_stride(uint32_t w, vg_lite_buffer_format_t color_fo
 
     uint32_t mul, div, align;
     lv_vg_lite_buffer_format_bytes(color_format, &mul, &div, &align);
-    return LV_VG_LITE_ALIGN(((w * mul + div - 1) / div), align);
+    return LV_VG_LITE_ALIGN((w * mul / div), align);
 }
 
 uint32_t lv_vg_lite_width_align(uint32_t w)
@@ -518,7 +517,6 @@ void lv_vg_lite_buffer_init(
     const void * ptr,
     int32_t width,
     int32_t height,
-    uint32_t stride,
     vg_lite_buffer_format_t format,
     bool tiled)
 {
@@ -541,13 +539,8 @@ void lv_vg_lite_buffer_init(
     buffer->transparency_mode = VG_LITE_IMAGE_OPAQUE;
     buffer->width = width;
     buffer->height = height;
-    if(stride == LV_STRIDE_AUTO) {
-        lv_vg_lite_buffer_format_bytes(buffer->format, &mul, &div, &align);
-        buffer->stride = LV_VG_LITE_ALIGN((buffer->width * mul / div), align);
-    }
-    else {
-        buffer->stride = stride;
-    }
+    lv_vg_lite_buffer_format_bytes(buffer->format, &mul, &div, &align);
+    buffer->stride = LV_VG_LITE_ALIGN((buffer->width * mul / div), align);
 
     if(format == VG_LITE_NV12) {
         lv_yuv_buf_t * frame_p = (lv_yuv_buf_t *)ptr;
@@ -574,7 +567,6 @@ void lv_vg_lite_buffer_from_draw_buf(vg_lite_buffer_t * buffer, const lv_draw_bu
     const uint8_t * ptr = draw_buf->data;
     int32_t width = draw_buf->header.w;
     int32_t height = draw_buf->header.h;
-    uint32_t stride = draw_buf->header.stride;
     vg_lite_buffer_format_t format = lv_vg_lite_vg_fmt(draw_buf->header.cf);
 
     if(LV_COLOR_FORMAT_IS_INDEXED(draw_buf->header.cf)) {
@@ -586,7 +578,7 @@ void lv_vg_lite_buffer_from_draw_buf(vg_lite_buffer_t * buffer, const lv_draw_bu
 
     width = lv_vg_lite_width_align(width);
 
-    lv_vg_lite_buffer_init(buffer, ptr, width, height, stride, format, false);
+    lv_vg_lite_buffer_init(buffer, ptr, width, height, format, false);
 
     /* Alpha image need to be multiplied by color */
     if(LV_COLOR_FORMAT_IS_ALPHA_ONLY(draw_buf->header.cf)) {
@@ -637,7 +629,6 @@ bool lv_vg_lite_buffer_open_image(vg_lite_buffer_t * buffer, lv_image_decoder_ds
     args.stride_align = true;
     args.use_indexed = true;
     args.no_cache = no_cache;
-    args.flush_cache = true;
 
     lv_result_t res = lv_image_decoder_open(decoder_dsc, src, &args);
     if(res != LV_RESULT_OK) {
@@ -723,7 +714,7 @@ vg_lite_color_t lv_vg_lite_color(lv_color_t color, lv_opa_t opa, bool pre_mul)
 
 vg_lite_blend_t lv_vg_lite_blend_mode(lv_blend_mode_t blend_mode)
 {
-    if(vg_lite_query_feature(gcFEATURE_BIT_VG_LVGL_SUPPORT)) {
+    if(lv_vg_lite_support_blend_normal()) {
         switch(blend_mode) {
             case LV_BLEND_MODE_NORMAL: /**< Simply mix according to the opacity value*/
                 return VG_LITE_BLEND_NORMAL_LVGL;
@@ -744,9 +735,6 @@ vg_lite_blend_t lv_vg_lite_blend_mode(lv_blend_mode_t blend_mode)
 
     switch(blend_mode) {
         case LV_BLEND_MODE_NORMAL: /**< Simply mix according to the opacity value*/
-            if(vg_lite_query_feature(gcFEATURE_BIT_VG_HW_PREMULTIPLY)) {
-                return VG_LITE_BLEND_PREMULTIPLY_SRC_OVER;
-            }
             return VG_LITE_BLEND_SRC_OVER;
 
         case LV_BLEND_MODE_ADDITIVE: /**< Add the respective color channels*/
@@ -927,15 +915,7 @@ bool lv_vg_lite_matrix_check(const vg_lite_matrix_t * matrix)
 
 bool lv_vg_lite_support_blend_normal(void)
 {
-    if(vg_lite_query_feature(gcFEATURE_BIT_VG_HW_PREMULTIPLY)) {
-        return true;
-    }
-
-    if(vg_lite_query_feature(gcFEATURE_BIT_VG_LVGL_SUPPORT)) {
-        return true;
-    }
-
-    return false;
+    return vg_lite_query_feature(gcFEATURE_BIT_VG_LVGL_SUPPORT);
 }
 
 bool lv_vg_lite_16px_align(void)
@@ -962,6 +942,11 @@ void lv_vg_lite_matrix_multiply(vg_lite_matrix_t * matrix, const vg_lite_matrix_
 
     /* Copy temporary matrix into result. */
     lv_memcpy(matrix, &temp, sizeof(temp));
+}
+
+void lv_vg_lite_matrix_flip_y(vg_lite_matrix_t * matrix)
+{
+    matrix->m[1][1] = -matrix->m[1][1];
 }
 
 bool lv_vg_lite_matrix_inverse(vg_lite_matrix_t * result, const vg_lite_matrix_t * matrix)
@@ -1079,11 +1064,7 @@ void lv_vg_lite_finish(struct _lv_draw_vg_lite_unit_t * u)
     LV_VG_LITE_CHECK_ERROR(vg_lite_finish());
 
     /* Clear all gradient caches reference */
-    lv_vg_lite_pending_remove_all(u->linear_grad_pending);
-
-    if(u->radial_grad_pending) {
-        lv_vg_lite_pending_remove_all(u->radial_grad_pending);
-    }
+    lv_vg_lite_pending_remove_all(u->grad_pending);
 
     /* Clear image decoder dsc reference */
     lv_vg_lite_pending_remove_all(u->image_dsc_pending);

@@ -26,7 +26,6 @@
 
 #include "tjpgd.h"
 
-#if LV_USE_TJPGD
 
 #if JD_FASTDECODE == 2
     #define HUFF_BIT    10  /* Bit length to apply fast huffman decode */
@@ -1136,4 +1135,3 @@ JRESULT jd_decomp(
 
     return rc;
 }
-#endif

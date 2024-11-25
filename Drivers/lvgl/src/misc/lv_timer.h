@@ -17,6 +17,9 @@ extern "C" {
 #include "lv_types.h"
 #include "lv_ll.h"
 
+#include <stdint.h>
+#include <stdbool.h>
+
 /*********************
  *      DEFINES
  *********************/

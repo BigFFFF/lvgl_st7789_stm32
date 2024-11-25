@@ -7,8 +7,8 @@
 #define _LV_SPRINTF_H_
 
 #if defined(__has_include)
-    #if __has_include(LV_INTTYPES_INCLUDE)
-        #include LV_INTTYPES_INCLUDE
+    #if __has_include(<inttypes.h>)
+        #include <inttypes.h>
         /* platform-specific printf format for int32_t, usually "d" or "ld" */
         #define LV_PRId32 PRId32
         #define LV_PRIu32 PRIu32
@@ -28,7 +28,9 @@
     #define LV_PRIX32 "X"
 #endif
 
-#include "../misc/lv_types.h"
+#include <stdbool.h>
+#include <stdarg.h>
+#include <stddef.h>
 
 #ifdef __cplusplus
 extern "C" {

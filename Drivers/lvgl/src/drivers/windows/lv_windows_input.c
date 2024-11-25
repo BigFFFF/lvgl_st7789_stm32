@@ -10,14 +10,8 @@
 #include "lv_windows_input.h"
 #if LV_USE_WINDOWS
 
-#ifdef __GNUC__
-    #pragma GCC diagnostic ignored "-Wcast-function-type"
-#endif
-
 #include "lv_windows_context.h"
 #include "lv_windows_display.h"
-#include "lv_windows_input_private.h"
-#include "../../misc/lv_text_private.h"
 
 #include <windowsx.h>
 
@@ -563,8 +557,6 @@ bool lv_windows_keypad_device_window_message_handler(
     LPARAM lParam,
     LRESULT * plResult)
 {
-    LV_UNUSED(lParam);
-
     switch(uMsg) {
         case WM_KEYDOWN:
         case WM_KEYUP: {
@@ -666,7 +658,7 @@ bool lv_windows_keypad_device_window_message_handler(
                         }
 
                         uint32_t lvgl_code_point =
-                            lv_text_unicode_to_encoded(code_point);
+                            _lv_text_unicode_to_encoded(code_point);
 
                         lv_windows_push_key_to_keyboard_queue(
                             context,
@@ -799,8 +791,6 @@ bool lv_windows_encoder_device_window_message_handler(
     LPARAM lParam,
     LRESULT * plResult)
 {
-    LV_UNUSED(lParam);
-
     switch(uMsg) {
         case WM_MBUTTONDOWN:
         case WM_MBUTTONUP: {

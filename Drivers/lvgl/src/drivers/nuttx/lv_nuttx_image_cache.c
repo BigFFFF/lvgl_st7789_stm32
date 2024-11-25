@@ -7,8 +7,10 @@
  *      INCLUDES
  *********************/
 
-#include "lv_nuttx_image_cache.h"
+#include "lv_nuttx_cache.h"
 #include "../../../lvgl.h"
+
+#if LV_CACHE_DEF_SIZE > 0
 
 #if LV_USE_NUTTX
 
@@ -32,8 +34,6 @@ typedef struct {
 
     struct mm_heap_s * heap;
     uint32_t heap_size;
-
-    bool initialized;
 } lv_nuttx_ctx_image_cache_t;
 /**********************
  *  STATIC PROTOTYPES
@@ -63,46 +63,9 @@ void lv_nuttx_image_cache_init(void)
     ctx = lv_malloc_zeroed(sizeof(lv_nuttx_ctx_image_cache_t));
     LV_ASSERT_MALLOC(ctx);
 
-    ctx->initialized = false;
-}
-
-void lv_nuttx_image_cache_deinit(void)
-{
-    if(ctx->initialized == false) goto FREE_CONTEXT;
-
-    mm_uninitialize(ctx->heap);
-    free(ctx->mem);
-
-FREE_CONTEXT:
-    lv_free(ctx);
-
-    ctx = NULL;
-}
-
-/**********************
- *   STATIC FUNCTIONS
- **********************/
-
-static bool defer_init(void)
-{
-    if(ctx->mem != NULL && ctx->heap != NULL) {
-        return true;
-    }
-
-    if(lv_image_cache_is_enabled() == false) {
-        LV_LOG_INFO("Image cache is not initialized yet. Skipping deferred initialization. Because max_size is 0.");
-        return false;
-    }
-
-    ctx->mem_size = img_cache_p->max_size;
+    ctx->mem_size = LV_CACHE_DEF_SIZE;
     ctx->mem = malloc(ctx->mem_size);
     LV_ASSERT_MALLOC(ctx->mem);
-
-    if(ctx->mem == NULL) {
-        LV_LOG_ERROR("Failed to allocate memory for image cache");
-        ctx->initialized = false;
-        return false;
-    }
 
     ctx->heap = mm_initialize(
                     HEAP_NAME,
@@ -123,18 +86,15 @@ static bool defer_init(void)
     LV_LOG_USER("  mxordblk: %d", info.mxordblk);
     LV_LOG_USER("  uordblks: %d", info.uordblks);
     LV_LOG_USER("  fordblks: %d", info.fordblks);
-
-    ctx->initialized = true;
-    return true;
 }
+
+/**********************
+ *   STATIC FUNCTIONS
+ **********************/
 
 static void * malloc_cb(size_t size_bytes, lv_color_format_t color_format)
 {
     LV_UNUSED(color_format);
-
-    if(ctx->initialized == false) {
-        if(defer_init() == false) return NULL;
-    }
 
     /*Allocate larger memory to be sure it can be aligned as needed*/
     size_bytes += LV_DRAW_BUF_ALIGN - 1;
@@ -166,3 +126,4 @@ static void free_cb(void * draw_buf)
 }
 
 #endif /* LV_USE_NUTTX */
+#endif /* LV_CACHE_DEF_SIZE > 0 */

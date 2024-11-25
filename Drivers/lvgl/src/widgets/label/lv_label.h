@@ -17,7 +17,7 @@ extern "C" {
 
 #if LV_USE_LABEL != 0
 
-#include "../../misc/lv_types.h"
+#include <stdarg.h>
 #include "../../core/lv_obj.h"
 #include "../../font/lv_font.h"
 #include "../../font/lv_symbol_def.h"

@@ -42,7 +42,9 @@ static void lv_draw_dave2d_draw_letter_cb(lv_draw_unit_t * u, lv_draw_glyph_dsc_
 #if LV_USE_OS
     lv_result_t  status;
     status = lv_mutex_lock(unit->pd2Mutex);
-    LV_ASSERT(LV_RESULT_OK == status);
+    if(LV_RESULT_OK != status) {
+        __BKPT(0);
+    }
 #endif
 
 #if D2_RENDER_EACH_OPERATION
@@ -153,7 +155,9 @@ static void lv_draw_dave2d_draw_letter_cb(lv_draw_unit_t * u, lv_draw_glyph_dsc_
 
 #if LV_USE_OS
     status = lv_mutex_unlock(unit->pd2Mutex);
-    LV_ASSERT(LV_RESULT_OK == status);
+    if(LV_RESULT_OK != status) {
+        __BKPT(0);
+    }
 #endif
 }
 
